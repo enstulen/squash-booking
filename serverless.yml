@@ -1,0 +1,22 @@
+service: aws-node-puppeteer
+provider:
+  name: aws
+  runtime: nodejs12.x
+  region: ${opt:region, 'eu-west-1'}
+
+plugins:
+  - serverless-offline
+
+package:
+  exclude:
+    - node_modules/puppeteer/.local-chromium/**
+
+functions:
+  bookSquash:
+    handler: handler.bookSquash
+    memorySize: 1536MB
+    timeout: 30
+    events:
+      - http:
+          path: /
+          method: get
