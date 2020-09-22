@@ -3,6 +3,15 @@ const puppeteer = require('puppeteer')
 const moment = require('moment')
 
 module.exports.bookSquash = async (event, context) => {
+  /*   event = {
+    username: 'stulenmorten@gmail.com',
+    password: 'password',
+    startTime: '10:00',
+    halfHoursCount: 3,
+    center: 'Sentrum',
+    players: ['17896', '25634'],
+  } */
+
   try {
     const browser = await chromium.puppeteer.launch({
       args: chromium.args,
@@ -21,11 +30,9 @@ module.exports.bookSquash = async (event, context) => {
     await selectCenter(page, event)
     await clickTomorrow(page)
     await clickTimeSlot(page, event)
+    await selectEndTime(page, event)
     await clickNext(page, `a[data-id="to_own_booking"]`)
-    await clickNext(
-      page,
-      `#booking-step-one > div > div.form-group.note.note-info.is_own_booking > div.booking_step_content > div > a.btn.blue-hoki.booking_step_next`
-    )
+    await selectBooking(page, event)
     await clickConfirm(page)
   } catch (error) {
     console.log(error)
@@ -69,14 +76,14 @@ const clickTomorrow = async (page) => {
 }
 
 const clickTimeSlot = async (page, event) => {
-  console.log('Selecting timeslot: ', event.time)
+  console.log('Selecting timeslot: ', event.startTime)
   const selector = '#booking_hours > a'
   await page.waitFor(2000)
   await page.$$eval(
     selector,
     (anchors, event) => {
       anchors.map((anchor) => {
-        if (anchor.textContent.trim() == event.time) {
+        if (anchor.textContent.trim() == event.startTime) {
           anchor.click()
           return
         }
@@ -84,6 +91,58 @@ const clickTimeSlot = async (page, event) => {
     },
     event
   )
+}
+
+const selectEndTime = async (page, event) => {
+  console.log('Selecting halfHoursCount: ', event.halfHoursCount.toString())
+  await page.waitFor(() => !document.querySelector('.blockOverlay'))
+  await page.select('#booking_end_time', event.halfHoursCount.toString())
+}
+
+const selectBooking = async (page, event) => {
+  await page.waitFor(() => !document.querySelector('.blockOverlay'))
+  for (player in event.players) {
+    console.log('Selecting player: ', event.players[player])
+    await page.waitFor(2000)
+    await page.waitFor(() => !document.querySelector('.blockOverlay'))
+
+    const playerNumber = parseInt(player)
+    if (playerNumber === 0) {
+      console.log('Selecting player 0')
+      await page.select(
+        '#booking-step-one > div > div.form-group.note.note-info.is_own_booking > div.booking_step_content > select.form-control.margin-bottom-10.input-sm',
+        event.players[player]
+      )
+      await clickNext(
+        page,
+        `#booking-step-one > div > div.form-group.note.note-info.is_own_booking > div.booking_step_content > div > a.btn.blue-hoki.booking_step_next`
+      )
+    } else if (playerNumber === 1 && event.players.length === 2) {
+      console.log('Selecting player 1 with 2 players')
+      await page.select(
+        '#booking-step-one > div > div.form-group.note.note-info.friend_booking > div.booking_step_content > select.form-control.margin-bottom-10.input-sm',
+        event.players[player]
+      )
+      await clickNext(
+        page,
+        `#booking-step-one > div > div.form-group.note.note-info.friend_booking > div.booking_step_content > div > a.btn.blue-hoki.booking_step_next`
+      )
+    } else {
+      console.log('Selecting next player', playerNumber)
+      await page.select(
+        `#booking-step-one > div > div:nth-child(${
+          playerNumber + 2
+        }) > div.booking_step_content > select.form-control.margin-bottom-10.input-sm`,
+        event.players[player]
+      )
+      await clickNext(
+        page,
+        `#booking-step-one > div > div:nth-child(${
+          playerNumber + 2
+        }) > div.booking_step_content > div > a.btn.blue-hoki.booking_step_next`
+      )
+    }
+  }
 }
 
 const clickNext = async (page, selector) => {
