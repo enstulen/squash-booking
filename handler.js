@@ -4,13 +4,14 @@ const moment = require('moment')
 
 module.exports.bookSquash = async (event, context) => {
   /*   event = {
-    username: 'stulenmorten@gmail.com',
-    password: 'password',
-    startTime: '10:00',
-    halfHoursCount: 3,
-    center: 'Sentrum',
-    players: ['17896', '25634'],
-  } */
+    username: "stulenmorten@gmail.com",
+    password: "bQsbvqD5sAN75g2",
+    startTime: "09:00",
+    halfHoursCount: 1,
+    center: "Sentrum",
+    players: ["25634"],
+    payment: true,
+  }; */
 
   try {
     const browser = await chromium.puppeteer.launch({
@@ -34,6 +35,13 @@ module.exports.bookSquash = async (event, context) => {
     await clickNext(page, `a[data-id="to_own_booking"]`)
     await selectBooking(page, event)
     await clickConfirm(page)
+    await page.waitForNavigation()
+    if (event.payment === true) {
+      await makePayment(
+        page,
+        'body > div.page-container > div > div.page-content-wrapper > div.page-content > div > div > div > div > div.portlet-body > div > div > div.summaray-buttons-bottom > div:nth-child(2) > div > button.btn.btn-success.stripe_peyment'
+      )
+    }
   } catch (error) {
     console.log(error)
   }
@@ -100,12 +108,11 @@ const selectEndTime = async (page, event) => {
 }
 
 const selectBooking = async (page, event) => {
-  await page.waitFor(() => !document.querySelector('.blockOverlay'))
+  console.log('selectBooking ')
   for (player in event.players) {
     console.log('Selecting player: ', event.players[player])
-    await page.waitFor(2000)
-    await page.waitFor(() => !document.querySelector('.blockOverlay'))
-
+    await page.waitFor(5000)
+    console.log('Selecting...')
     const playerNumber = parseInt(player)
     if (playerNumber === 0) {
       console.log('Selecting player 0')
@@ -145,13 +152,29 @@ const selectBooking = async (page, event) => {
   }
 }
 
-const clickNext = async (page, selector) => {
-  console.log('Clicked next')
-  await page.waitFor(() => !document.querySelector('.blockOverlay'))
+const clickButton = async (page, selector) => {
   await page.evaluate(
     (selector) => document.querySelector(selector).click(),
     selector
   )
+}
+
+const clickNext = async (page, selector) => {
+  console.log('Clicked next')
+  await clickButton(page, selector)
+}
+
+const makePayment = async (page, selector) => {
+  console.log('Clicked payment')
+  await clickButton(page, selector)
+  await page.waitFor(1000)
+  console.log('Clicked payment modal')
+  const yesButtonSelector = `button[data-target="#confirm-modal"]`
+  await clickButton(page, yesButtonSelector)
+  console.log('Clicked yes')
+  const confirmButtonSelector = '#confirm-stripe'
+  await clickButton(page, confirmButtonSelector)
+  console.log('Clicked confirm payment')
 }
 
 const clickConfirm = async (page) => {
