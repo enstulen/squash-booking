@@ -1,17 +1,20 @@
 const chromium = require('chrome-aws-lambda')
 const puppeteer = require('puppeteer')
 const moment = require('moment')
+const AWS = require('aws-sdk')
+const s3 = new AWS.S3()
+const bucket = 'sqashpuppeteerscreenshots'
 
 module.exports.bookSquash = async (event, context) => {
   /*   event = {
-      username: 'stulenmorten@gmail.com',
-      password: 'bQsbvqD5sAN75g2',
-      startTime: '09:00',
-      halfHoursCount: 2,
-      center: 'Sentrum',
-      players: ['25634', '25634'],
-      payment: false,
-    } */
+    username: 'stulenmorten@gmail.com',
+    password: 'bQsbvqD5sAN75g2',
+    startTime: '09:00',
+    halfHoursCount: 2,
+    center: 'Sentrum',
+    players: ['25634', '25634'],
+    payment: false,
+  } */
 
   try {
     const browser = await chromium.puppeteer.launch({
@@ -24,7 +27,6 @@ module.exports.bookSquash = async (event, context) => {
     })
     const page = await browser.newPage()
     await page.goto('https://sqf.book247.com/', { waitUntil: 'networkidle0' })
-
     if (await page.$('#username_focus')) {
       await login(page, event)
     }
@@ -34,6 +36,7 @@ module.exports.bookSquash = async (event, context) => {
     await selectEndTime(page, event)
     await clickNext(page, `a[data-id="to_own_booking"]`)
     await selectBooking(page, event)
+    await uploadScreenShot('booking-summary', page)
     await clickConfirm(page)
     await page.waitForNavigation()
     if (event.payment === true) {
@@ -101,6 +104,13 @@ const clickTimeSlot = async (page, event) => {
   )
 }
 
+const uploadScreenShot = async (key, page) => {
+  const screenshot = await page.screenshot()
+  const objectKey = new Date().toString() + '-' + key
+  const params = { Bucket: bucket, Key: objectKey, Body: screenshot }
+  await s3.putObject(params).promise()
+}
+
 const selectEndTime = async (page, event) => {
   console.log('Selecting halfHoursCount: ', event.halfHoursCount.toString())
   await page.waitFor(() => !document.querySelector('.blockOverlay'))
@@ -118,8 +128,8 @@ const selectBooking = async (page, event) => {
       console.log('Selecting player 0')
       const selector =
         '#booking-step-one > div > div.form-group.note.note-info.is_own_booking > div.booking_step_content > select.form-control.margin-bottom-10.input-sm'
-      await page.waitForSelector(selector)
       await page.select(selector, event.players[player])
+      await uploadScreenShot('selecting-player-0', page)
       await clickNext(
         page,
         `#booking-step-one > div > div.form-group.note.note-info.is_own_booking > div.booking_step_content > div > a.btn.blue-hoki.booking_step_next`
@@ -128,18 +138,19 @@ const selectBooking = async (page, event) => {
       console.log('Selecting player 1 with 2 players')
       const selector =
         '#booking-step-one > div > div.form-group.note.note-info.friend_booking > div.booking_step_content > select.form-control.margin-bottom-10.input-sm'
-      await page.waitForSelector(selector)
       await page.select(selector, event.players[player])
+      await uploadScreenShot('selecting-player-1-with-2-players', page)
+
       await clickNext(
         page,
         `#booking-step-one > div > div.form-group.note.note-info.friend_booking > div.booking_step_content > div > a.btn.blue-hoki.booking_step_next`
       )
     } else {
       console.log('Selecting next player', playerNumber)
+      await uploadScreenShot('selecting-next-player', page)
       const selector = `#booking-step-one > div > div:nth-child(${
         playerNumber + 2
       }) > div.booking_step_content > select.form-control.margin-bottom-10.input-sm`
-      await page.waitForSelector(selector)
       await page.select(selector, event.players[player])
       await clickNext(
         page,
@@ -167,10 +178,12 @@ const makePayment = async (page, selector) => {
   console.log('Clicked payment')
   await clickButton(page, selector)
   await page.waitFor(3000)
+  await uploadScreenShot('payment-modal', page)
   console.log('Clicked payment modal')
   const yesButtonSelector = `button[data-target="#confirm-modal"]`
   await clickButton(page, yesButtonSelector)
   await page.waitFor(3000)
+  await uploadScreenShot('payment-confirm', page)
   console.log('Clicked yes')
   const confirmButtonSelector = '#confirm-stripe'
   await clickButton(page, confirmButtonSelector)

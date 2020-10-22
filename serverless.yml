@@ -15,7 +15,7 @@ functions:
   bookSquash:
     handler: handler.bookSquash
     memorySize: 1536MB
-    timeout: 30
+    timeout: 300
     events:
       - http:
           path: /
