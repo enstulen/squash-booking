@@ -6,47 +6,99 @@ const s3 = new AWS.S3()
 const bucket = 'sqashpuppeteerscreenshots'
 
 module.exports.bookSquash = async (event, context) => {
-  /*   event = {
+  /* event = {
     username: 'stulenmorten@gmail.com',
     password: 'bQsbvqD5sAN75g2',
     startTime: '09:00',
     halfHoursCount: 2,
     center: 'Sentrum',
-    players: ['25634', '25634'],
+    players: ['25634', '27137'],
     payment: false,
   } */
 
+  const browser = await chromium.puppeteer.launch({
+    args: chromium.args,
+    defaultViewport: chromium.defaultViewport,
+    executablePath: await chromium.executablePath,
+    headless: chromium.headless,
+    ignoreHTTPSErrors: true,
+    puppeteer: puppeteer,
+  })
+
+  const page = await browser.newPage()
+  await page.setViewport({ width: 1720, height: 954 })
+
   try {
-    const browser = await chromium.puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath,
-      headless: chromium.headless,
-      ignoreHTTPSErrors: true,
-      puppeteer: puppeteer,
+    await page.goto('https://sqf.book247.com/', {
+      waitUntil: 'domcontentloaded',
     })
-    const page = await browser.newPage()
-    await page.goto('https://sqf.book247.com/', { waitUntil: 'networkidle0' })
+    await uploadScreenShot('page-loaded', page)
     if (await page.$('#username_focus')) {
       await login(page, event)
     }
+  } catch (error) {
+    console.log('Login error', error)
+  }
+
+  try {
     await selectCenter(page, event)
+    await uploadScreenShot('selected-center', page)
+  } catch (error) {
+    console.log('Select center error', error)
+  }
+
+  try {
     await clickTomorrow(page)
+  } catch (error) {
+    console.log('Click tomorrow error', error)
+  }
+
+  try {
     await clickTimeSlot(page, event)
+    await uploadScreenShot('clicked-timeslot', page)
+  } catch (error) {
+    console.log('Click timeslot error', error)
+  }
+
+  try {
     await selectEndTime(page, event)
+    await uploadScreenShot('selectEndTime', page)
+  } catch (error) {
+    console.log('Select endtime error', error)
+  }
+
+  try {
     await clickNext(page, `a[data-id="to_own_booking"]`)
+    await uploadScreenShot('clickNext', page)
+  } catch (error) {
+    console.log('Click next error', error)
+  }
+
+  try {
     await selectBooking(page, event)
     await uploadScreenShot('booking-summary', page)
+  } catch (error) {
+    console.log('Select booking error', error)
+  }
+
+  try {
     await clickConfirm(page)
-    await page.waitForNavigation()
-    if (event.payment === true) {
+    await uploadScreenShot('booking-summary', page)
+  } catch (error) {
+    console.log('Click confirm error', error)
+  }
+
+  await page.waitForNavigation()
+
+  if (event.payment === true) {
+    try {
       await makePayment(
         page,
         'body > div.page-container > div > div.page-content-wrapper > div.page-content > div > div > div > div > div.portlet-body > div > div > div.summaray-buttons-bottom > div:nth-child(2) > div > button.btn.btn-success.stripe_peyment'
       )
+    } catch (error) {
+      console.log('Make payment error', error)
     }
-  } catch (error) {
-    console.log(error)
   }
 
   return context.logStreamName
@@ -56,10 +108,9 @@ const login = async (page, event) => {
   console.log('Logging in: ', event.username)
   await page.type('#username_focus', event.username)
   await page.type('[placeholder="Password"]', event.password)
-  await Promise.all([
-    page.click('#user_login_form > div:nth-child(6) > button'),
-    page.waitForNavigation({ waitUntil: 'networkidle0' }),
-  ])
+  await uploadScreenShot('username-password', page)
+  await page.click('#user_login_form > div:nth-child(6) > button')
+  await page.waitForNavigation({ waitUntil: 'domcontentloaded' })
 }
 
 const selectCenter = async (page, event) => {
@@ -89,7 +140,7 @@ const clickTomorrow = async (page) => {
 const clickTimeSlot = async (page, event) => {
   console.log('Selecting timeslot: ', event.startTime)
   const selector = '#booking_hours > a'
-  await page.waitFor(2000)
+  await page.waitFor(5000)
   await page.$$eval(
     selector,
     (anchors, event) => {
@@ -195,7 +246,8 @@ const makePayment = async (page, selector) => {
 const clickConfirm = async (page) => {
   console.log('Clicked confirm')
   const selector = `#booking-step-one > div > div.form-group.note.note-info.booking_summary_box > div > div.form-actions.right > a`
-  await page.waitFor(5000)
+  await page.waitFor(3000)
+  await uploadScreenShot('booking-summary2', page)
   await page.$$eval(selector, (anchors) => {
     anchors.map((anchor) => {
       if (anchor.textContent.trim() == 'Confirm') {
